@@ -1,0 +1,103 @@
+version: 2
+
+project_name: svidmint
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: svidmint
+    main: ./cmd/svidmint
+    binary: svidmint
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/sns45/svidmint:{{ .Version }}-amd64"
+      - "ghcr.io/sns45/svidmint:latest-amd64"
+    dockerfile: deploy/docker/Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=VERSION={{ .Version }}"
+    goarch: amd64
+
+  - image_templates:
+      - "ghcr.io/sns45/svidmint:{{ .Version }}-arm64"
+      - "ghcr.io/sns45/svidmint:latest-arm64"
+    dockerfile: deploy/docker/Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=VERSION={{ .Version }}"
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/sns45/svidmint:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/sns45/svidmint:{{ .Version }}-amd64"
+      - "ghcr.io/sns45/svidmint:{{ .Version }}-arm64"
+
+  - name_template: "ghcr.io/sns45/svidmint:latest"
+    image_templates:
+      - "ghcr.io/sns45/svidmint:latest-amd64"
+      - "ghcr.io/sns45/svidmint:latest-arm64"
+
+brews:
+  - name: svidmint
+    repository:
+      owner: sns45
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/sns45/svidmint"
+    description: "SPIFFE compatible workload identity for serverless and edge environments"
+    license: "Apache-2.0"
+    install: |
+      bin.install "svidmint"
+    test: |
+      system "#{bin}/svidmint", "version"
+
+release:
+  github:
+    owner: sns45
+    name: svidmint
+  prerelease: auto
+  draft: false
