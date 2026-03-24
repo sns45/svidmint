@@ -1,0 +1,23 @@
+# Documentation (tracked separately)
+*.md
+!README.md
+
+# Binaries
+bin/
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Go
+vendor/
+
+# Node
+node_modules/
+dist/
