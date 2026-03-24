@@ -1,6 +1,13 @@
-# Documentation (tracked separately)
+# Specs and internal docs
 *.md
 !README.md
+specs/
+docs/superpowers/
+
+# Claude / AI tooling
+.claude/
+CLAUDE.md
+PROMPT.md
 
 # Binaries
 bin/
