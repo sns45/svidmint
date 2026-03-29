@@ -32,7 +32,7 @@ func openStore(cmd *cobra.Command) (entry.Store, error) {
 	if dbPath == "" {
 		dbPath = defaultDBPath
 	}
-	return entry.NewJSONStore(dbPath)
+	return entry.NewSQLiteStore(dbPath)
 }
 
 func newEntryCreateCmd() *cobra.Command {
