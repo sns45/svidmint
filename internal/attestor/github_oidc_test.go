@@ -17,16 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type githubClaims struct {
-	Repository        string `json:"repository"`
-	RepositoryOwner   string `json:"repository_owner"`
-	SHA               string `json:"sha"`
-	Ref               string `json:"ref"`
-	Workflow          string `json:"workflow"`
-	Environment       string `json:"environment"`
-	RunnerEnvironment string `json:"runner_environment"`
-	Actor             string `json:"actor"`
-}
 
 func newTestKey(t *testing.T) (*ecdsa.PrivateKey, jose.JSONWebKeySet) {
 	t.Helper()

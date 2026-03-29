@@ -154,7 +154,7 @@ func TestFetch_InvalidEndpoint(t *testing.T) {
 
 func TestFetch_BadJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	t.Cleanup(srv.Close)
 
