@@ -98,7 +98,7 @@ func runServerStart(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("initializing logger: %w", err)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Initialize CA
 	caImpl, err := ca.NewSelfSignedCA(ca.SelfSignedCAConfig{

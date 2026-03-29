@@ -52,7 +52,7 @@ func denoSetupJWKSServer(t *testing.T, jwk jose.JSONWebKey) *httptest.Server {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jwksBytes)
+		_, _ = w.Write(jwksBytes)
 	}))
 	t.Cleanup(srv.Close)
 	return srv

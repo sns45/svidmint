@@ -76,7 +76,7 @@ func serveSPIFFEBundle(t *testing.T, cert *x509.Certificate) *httptest.Server {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		_, _ = w.Write(data)
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -216,7 +216,7 @@ func TestStart_PeriodicRefresh(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		_, _ = w.Write(data)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -281,7 +281,7 @@ func TestFetch_EmptyX5C(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		_, _ = w.Write(data)
 	}))
 	t.Cleanup(srv.Close)
 

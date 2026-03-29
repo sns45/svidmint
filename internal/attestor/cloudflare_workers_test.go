@@ -51,7 +51,7 @@ func cfJWKSHandler(t *testing.T, key *ecdsa.PrivateKey, keyID string) http.Handl
 	jwks := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{jwk}}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(jwks)
+		_ = json.NewEncoder(w).Encode(jwks)
 	})
 }
 

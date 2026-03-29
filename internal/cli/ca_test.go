@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCAInitCommand(t *testing.T) {
@@ -29,7 +30,7 @@ func TestCAInitCommand(t *testing.T) {
 
 func TestCAInitCommand_FailsIfExists(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "root.key"), []byte("existing"), 0600)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.key"), []byte("existing"), 0600))
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
@@ -44,7 +45,7 @@ func TestCAInitCommand_FailsIfExists(t *testing.T) {
 
 func TestCAInitCommand_ForceOverwrite(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "root.key"), []byte("existing"), 0600)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.key"), []byte("existing"), 0600))
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{

@@ -144,7 +144,9 @@ func runCAExport(cmd *cobra.Command, args []string) error {
 		if block == nil {
 			return fmt.Errorf("failed to decode PEM")
 		}
-		cmd.OutOrStdout().Write(block.Bytes)
+		if _, err := cmd.OutOrStdout().Write(block.Bytes); err != nil {
+			return fmt.Errorf("writing DER output: %w", err)
+		}
 	default:
 		return fmt.Errorf("unsupported format: %s", format)
 	}

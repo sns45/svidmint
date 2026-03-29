@@ -72,14 +72,14 @@ func TestSQLiteStore_Match(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	store.Create(ctx, &RegistrationEntry{
+	require.NoError(t, store.Create(ctx, &RegistrationEntry{
 		ID: "e1", SpiffeID: "spiffe://example.org/a",
 		Attestor: "aws_sts", Selectors: []string{"aws.account_id:123"}, TTL: 300,
-	})
-	store.Create(ctx, &RegistrationEntry{
+	}))
+	require.NoError(t, store.Create(ctx, &RegistrationEntry{
 		ID: "e2", SpiffeID: "spiffe://example.org/b",
 		Attestor: "aws_sts", Selectors: []string{"aws.account_id:123", "aws.function_name:api"}, TTL: 300,
-	})
+	}))
 
 	result, err := store.Match(ctx, "aws_sts", map[string]string{"aws.account_id": "123", "aws.function_name": "api"})
 	require.NoError(t, err)

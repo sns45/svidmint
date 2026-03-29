@@ -26,7 +26,7 @@ func TestLoadEntriesFromFile(t *testing.T) {
     ttl: 600
 `
 	f := filepath.Join(t.TempDir(), "entries.yaml")
-	os.WriteFile(f, []byte(yamlContent), 0644)
+	require.NoError(t, os.WriteFile(f, []byte(yamlContent), 0644))
 
 	entries, err := LoadEntriesFromFile(f)
 	require.NoError(t, err)
