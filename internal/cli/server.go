@@ -136,8 +136,8 @@ func runServerStart(cmd *cobra.Command, args []string) error {
 		logger.Info("preloaded registration entries", zap.Int("count", len(entries)))
 	}
 
-	// Create attestor registry (empty for now; attestors are registered via config)
-	registry := attestor.NewRegistry()
+	// Build attestor registry from config
+	registry := buildAttestorRegistry(cfg, logger)
 
 	// Create and start server
 	srv, err := server.New(caImpl, registry, store, cfg, logger)
@@ -169,6 +169,53 @@ func runServerStart(cmd *cobra.Command, args []string) error {
 		}
 		return nil
 	}
+}
+
+func buildAttestorRegistry(cfg *config.Config, logger *zap.Logger) *attestor.Registry {
+	var attestors []attestor.Attestor
+
+	if cfg.Attestors.AWSLambda != nil && cfg.Attestors.AWSLambda.Enabled {
+		attestors = append(attestors, attestor.NewAWSLambdaAttestor(attestor.AWSLambdaAttestorConfig{
+			AllowedAccountIDs: cfg.Attestors.AWSLambda.AllowedAccountIDs,
+			AllowedRegions:    cfg.Attestors.AWSLambda.AllowedRegions,
+		}))
+		logger.Info("registered attestor", zap.String("name", "aws_sts"))
+	}
+
+	if cfg.Attestors.CloudflareWorkers != nil && cfg.Attestors.CloudflareWorkers.Enabled {
+		var teams []attestor.CloudflareTeamConfig
+		for _, t := range cfg.Attestors.CloudflareWorkers.Teams {
+			teams = append(teams, attestor.CloudflareTeamConfig{
+				Name:     t.Name,
+				CertsURL: t.CertsURL,
+			})
+		}
+		attestors = append(attestors, attestor.NewCloudflareWorkersAttestor(attestor.CloudflareWorkersAttestorConfig{
+			Teams: teams,
+		}))
+		logger.Info("registered attestor", zap.String("name", "cloudflare_workers"))
+	}
+
+	if cfg.Attestors.GitHubOIDC != nil && cfg.Attestors.GitHubOIDC.Enabled {
+		attestors = append(attestors, attestor.NewGitHubOIDCAttestor(attestor.GitHubOIDCAttestorConfig{
+			AllowedRepositories: cfg.Attestors.GitHubOIDC.AllowedRepositories,
+			Issuer:              cfg.Attestors.GitHubOIDC.Issuer,
+		}))
+		logger.Info("registered attestor", zap.String("name", "github_oidc"))
+	}
+
+	if cfg.Attestors.DenoOIDC != nil && cfg.Attestors.DenoOIDC.Enabled {
+		attestors = append(attestors, attestor.NewDenoDeployAttestor(attestor.DenoDeployAttestorConfig{
+			AllowedIssuers: []string{cfg.Attestors.DenoOIDC.Issuer},
+		}))
+		logger.Info("registered attestor", zap.String("name", "deno_oidc"))
+	}
+
+	if len(attestors) == 0 {
+		logger.Warn("no attestors enabled in configuration")
+	}
+
+	return attestor.NewRegistry(attestors...)
 }
 
 func runServerConfig(cmd *cobra.Command, args []string) error {
