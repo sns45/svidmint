@@ -22,6 +22,7 @@ type Server struct {
 	config   *config.Config
 	logger   *zap.Logger
 	mux      *http.ServeMux
+	handler  http.Handler
 	server   *http.Server
 }
 
@@ -36,6 +37,7 @@ func New(caImpl ca.CA, registry *attestor.Registry, store entry.Store, cfg *conf
 		mux:      http.NewServeMux(),
 	}
 	s.routes()
+	s.handler = loggingMiddleware(s.logger)(s.mux)
 	return s, nil
 }
 
@@ -47,16 +49,20 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/attest", s.handleAttest)
 }
 
-// ServeHTTP implements http.Handler, delegating to the internal mux.
+// ServeHTTP implements http.Handler, delegating to the wrapped handler
+// (which includes the logging middleware).
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	s.handler.ServeHTTP(w, r)
 }
 
 // Start begins listening on the configured address.
 func (s *Server) Start(ctx context.Context) error {
 	s.server = &http.Server{
 		Addr:    s.config.Server.Listen,
-		Handler: s.mux,
+		Handler: s.handler,
+	}
+	if s.config.Server.TLS.CertFile != "" && s.config.Server.TLS.KeyFile != "" {
+		return s.server.ListenAndServeTLS(s.config.Server.TLS.CertFile, s.config.Server.TLS.KeyFile)
 	}
 	return s.server.ListenAndServe()
 }

@@ -55,11 +55,14 @@ func (s *Server) handleAttest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Attest the evidence via the registry.
+	attestStart := time.Now()
 	result, err := s.registry.Attest(r.Context(), req.EvidenceType, evidence)
 	if err != nil {
+		attestationTotal.WithLabelValues("unknown", "error").Inc()
 		writeError(w, http.StatusUnauthorized, "ATTESTATION_FAILED", err.Error())
 		return
 	}
+	attestationDuration.WithLabelValues(req.EvidenceType).Observe(time.Since(attestStart).Seconds())
 
 	// Match against registration entries.
 	matchedEntry, err := s.store.Match(r.Context(), req.EvidenceType, result.Claims)
@@ -104,5 +107,7 @@ func (s *Server) handleAttest(w http.ResponseWriter, r *http.Request) {
 		resp.ExpiresAt = svid.ExpiresAt.Format(time.RFC3339)
 	}
 
+	attestationTotal.WithLabelValues(req.EvidenceType, "success").Inc()
+	svidIssuedTotal.WithLabelValues(req.SVIDType, req.EvidenceType).Inc()
 	writeJSON(w, http.StatusOK, resp)
 }

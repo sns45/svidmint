@@ -36,7 +36,7 @@ func NewDenoDeployAttestor(config DenoDeployAttestorConfig) *DenoDeployAttestor 
 	}
 	return &DenoDeployAttestor{
 		config:     config,
-		httpClient: http.DefaultClient,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 

@@ -95,26 +95,15 @@ func (s *JSONStore) Delete(_ context.Context, id string) error {
 func (s *JSONStore) Match(_ context.Context, attestorName string, claims map[string]string) (*RegistrationEntry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	entries := make([]*RegistrationEntry, 0, len(s.entries))
 	for _, e := range s.entries {
-		if e.Attestor != attestorName {
-			continue
-		}
-		selectorMap := make(map[string]bool)
-		for _, sel := range e.Selectors {
-			selectorMap[sel] = true
-		}
-		allMatch := true
-		for k, v := range claims {
-			if !selectorMap[k+":"+v] {
-				allMatch = false
-				break
-			}
-		}
-		if allMatch {
-			return e, nil
-		}
+		entries = append(entries, e)
 	}
-	return nil, fmt.Errorf("no matching entry found")
+	best := MatchEntries(entries, attestorName, claims)
+	if best == nil {
+		return nil, fmt.Errorf("no matching entry found")
+	}
+	return best, nil
 }
 
 func (s *JSONStore) Close() error {

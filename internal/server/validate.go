@@ -56,16 +56,19 @@ func (s *Server) validateX509(w http.ResponseWriter, r *http.Request, pemData st
 	}
 
 	if len(certs) == 0 {
+		svidValidatedTotal.WithLabelValues("x509", "false").Inc()
 		writeJSON(w, http.StatusOK, validateResponse{Valid: false, Error: "no certificates found in PEM data"})
 		return
 	}
 
 	spiffeID, err := s.ca.ValidateX509SVID(r.Context(), certs)
 	if err != nil {
+		svidValidatedTotal.WithLabelValues("x509", "false").Inc()
 		writeJSON(w, http.StatusOK, validateResponse{Valid: false, Error: err.Error()})
 		return
 	}
 
+	svidValidatedTotal.WithLabelValues("x509", "true").Inc()
 	writeJSON(w, http.StatusOK, validateResponse{
 		Valid:     true,
 		SpiffeID:  spiffeID,
@@ -76,10 +79,12 @@ func (s *Server) validateX509(w http.ResponseWriter, r *http.Request, pemData st
 func (s *Server) validateJWT(w http.ResponseWriter, r *http.Request, token string) {
 	spiffeID, err := s.ca.ValidateJWTSVID(r.Context(), token, "")
 	if err != nil {
+		svidValidatedTotal.WithLabelValues("jwt", "false").Inc()
 		writeJSON(w, http.StatusOK, validateResponse{Valid: false, Error: err.Error()})
 		return
 	}
 
+	svidValidatedTotal.WithLabelValues("jwt", "true").Inc()
 	// We don't have expiry info from the CA interface directly for JWT,
 	// so we return the current validation result without expires_at.
 	_ = time.Now() // placeholder; the CA could be extended to return expiry

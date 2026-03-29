@@ -40,6 +40,32 @@ func TestSQLiteStore_CRUD(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestSQLiteStore_DeleteNonExistent(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "test.db"))
+	require.NoError(t, err)
+	defer store.Close()
+
+	err = store.Delete(context.Background(), "does-not-exist")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does-not-exist")
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestSQLiteStore_UpdateNonExistent(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "test.db"))
+	require.NoError(t, err)
+	defer store.Close()
+
+	entry := &RegistrationEntry{
+		ID: "does-not-exist", SpiffeID: "spiffe://example.org/x",
+		Attestor: "aws_sts", Selectors: []string{"aws.account_id:999"}, TTL: 300,
+	}
+	err = store.Update(context.Background(), entry)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does-not-exist")
+	assert.Contains(t, err.Error(), "not found")
+}
+
 func TestSQLiteStore_Match(t *testing.T) {
 	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "test.db"))
 	require.NoError(t, err)

@@ -99,22 +99,36 @@ func (s *SQLiteStore) Update(ctx context.Context, entry *RegistrationEntry) erro
 	if err != nil {
 		return fmt.Errorf("marshal selectors: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx,
+	res, err := s.db.ExecContext(ctx,
 		`UPDATE registration_entries SET spiffe_id = ?, attestor = ?, selectors = ?, ttl = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		entry.SpiffeID, entry.Attestor, string(sel), entry.TTL, entry.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update entry: %w", err)
 	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("entry %s not found", entry.ID)
+	}
 	return nil
 }
 
 func (s *SQLiteStore) Delete(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx,
+	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM registration_entries WHERE id = ?`, id,
 	)
 	if err != nil {
 		return fmt.Errorf("delete entry: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("entry %s not found", id)
 	}
 	return nil
 }

@@ -32,6 +32,3 @@ func scanEntryRows(rows *sql.Rows) (*RegistrationEntry, error) {
 	}
 	return &e, nil
 }
-
-// scanEntryFromRows is an alias for scanEntryRows, used by PostgresStore.
-var scanEntryFromRows = scanEntryRows

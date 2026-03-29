@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/pem"
 	"fmt"
 	"os"
 
@@ -139,9 +140,11 @@ func runCAExport(cmd *cobra.Command, args []string) error {
 	case "pem":
 		cmd.Print(string(data))
 	case "der":
-		// For DER, we would need to decode PEM and output raw bytes.
-		// For now, just output the raw file content.
-		cmd.OutOrStdout().Write(data)
+		block, _ := pem.Decode(data)
+		if block == nil {
+			return fmt.Errorf("failed to decode PEM")
+		}
+		cmd.OutOrStdout().Write(block.Bytes)
 	default:
 		return fmt.Errorf("unsupported format: %s", format)
 	}

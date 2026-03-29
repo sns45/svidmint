@@ -22,3 +22,14 @@ jobs:
         run: go test -race ./...
       - name: Build
         run: go build -o /dev/null ./cmd/svidmint
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: go mod download
+      - name: Integration Tests
+        run: CGO_ENABLED=1 go test -tags integration -race -v ./internal/...
