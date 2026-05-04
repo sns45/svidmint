@@ -1,5 +1,9 @@
 # svidmint
 
+<p align="center">
+  <img src="assets/marketing/poster.png" alt="svidmint poster" width="600" />
+</p>
+
 SPIFFE-compatible workload identity for serverless and edge environments.
 
 ## Problem
