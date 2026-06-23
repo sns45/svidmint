@@ -1,0 +1,195 @@
+name: Assayward Release Gate
+
+# Activates svidmint dogfood: forgeseal attests svidmint's release artifact,
+# svidmint mints its own publisher SVID, and assayward gates the release on `allow`.
+# Addresses REQ-078 (see release.yaml commented-out forgeseal block).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  assayward-gate:
+    name: Assayward Release Gate
+    runs-on: ubuntu-latest
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout, setup Go, build
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+
+      - name: Build
+        run: make build
+
+      # -----------------------------------------------------------------------
+      # 2. ForgeSeal: attest svidmint's release artifact
+      #    Produces SBOM + keyed SLSA bundle + signing CA + VEX under
+      #    ./forgeseal-output/.
+      # -----------------------------------------------------------------------
+      - name: ForgeSeal attest release
+        uses: sns45/forgeseal@main
+        with:
+          command: pipeline
+          dir: .
+          output-dir: ./forgeseal-output
+          sign: 'true'
+          attest: 'true'
+          vex-triage: 'true'
+
+      # Extract the SLSA statement subject digest so the OIDC audience and
+      # assayward `image` reference bind to the same artifact identity.
+      - name: Extract artifact digest
+        id: digest
+        run: |
+          # forgeseal writes a SLSA provenance statement; parse its subject digest.
+          DIGEST=$(jq -r '
+            if .subject then
+              .subject[0].digest | to_entries | map("\(.key):\(.value)") | first
+            else
+              .predicate.subject[0].digest | to_entries | map("\(.key):\(.value)") | first
+            end
+          ' ./forgeseal-output/slsa-provenance.json 2>/dev/null \
+            || jq -r '.subject[0].digest | to_entries | map("\(.key):\(.value)") | first' \
+                   ./forgeseal-output/slsa-statement.json 2>/dev/null \
+            || echo "sha256:unknown")
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Artifact digest: $DIGEST"
+
+      # -----------------------------------------------------------------------
+      # 3. svidmint mints its OWN publisher SVID
+      #    Mirrors the exact flow from the `dogfood` job in ci.yaml.
+      # -----------------------------------------------------------------------
+      - name: Initialize CA
+        run: |
+          mkdir -p /tmp/svidmint
+          ./bin/svidmint ca init \
+            --trust-domain ci.svidmint.dev \
+            --root-key-path /tmp/svidmint/root.key \
+            --root-cert-path /tmp/svidmint/root.crt
+
+      - name: Write server config
+        run: |
+          cat > /tmp/svidmint/config.yaml <<'YAML'
+          trust_domain: ci.svidmint.dev
+          server:
+            listen: ":8443"
+          ca:
+            type: self-signed
+            key_type: ec-p256
+            root_key_path: /tmp/svidmint/root.key
+            root_cert_path: /tmp/svidmint/root.crt
+            signing_ttl: 1h
+            default_svid_ttl: 5m
+            max_svid_ttl: 1h
+          storage:
+            type: sqlite
+            dsn: /tmp/svidmint/assayward-gate.db
+          attestors:
+            github_oidc:
+              enabled: true
+              allowed_repositories:
+                - "sns45/svidmint"
+              issuer: "https://token.actions.githubusercontent.com"
+          YAML
+
+      - name: Create registration entry
+        run: |
+          ./bin/svidmint entry create \
+            --db /tmp/svidmint/assayward-gate.db \
+            --spiffe-id spiffe://ci.svidmint.dev/github-actions/ci \
+            --attestor github_oidc \
+            --selector "github.repository:sns45/svidmint" \
+            --ttl 300
+
+      - name: Start svidmint server
+        run: |
+          ./bin/svidmint server start --config /tmp/svidmint/config.yaml &
+          echo "Waiting for server to be ready..."
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8443/v1/health > /dev/null 2>&1; then
+              echo "Server is healthy"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:8443/v1/health || (echo "Server failed to start" && exit 1)
+
+      - name: Mint publisher SVID and fetch JWKS
+        env:
+          ARTIFACT_DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          # Use the artifact digest as the OIDC audience so the JWT binds to
+          # this specific artifact (same value passed to assayward `image`).
+          AUDIENCE="$ARTIFACT_DIGEST"
+
+          echo "Fetching GitHub OIDC token (audience: $AUDIENCE)..."
+          OIDC_TOKEN=$(curl -sf \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$AUDIENCE")" \
+            | jq -r '.value')
+
+          if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
+            echo "Failed to fetch OIDC token"
+            exit 1
+          fi
+          echo "Got OIDC token (${#OIDC_TOKEN} chars)"
+
+          EVIDENCE_JSON=$(printf '{"oidc_token":"%s"}' "$OIDC_TOKEN" | base64 -w0)
+
+          echo "Attesting for JWT SVID (publisher identity)..."
+          RESPONSE=$(curl -sf -X POST http://localhost:8443/v1/attest \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"evidence_type\": \"github_oidc\",
+              \"evidence\": \"$EVIDENCE_JSON\",
+              \"svid_type\": \"jwt\",
+              \"audience\": [\"$AUDIENCE\"]
+            }")
+
+          echo "Attest response: $RESPONSE"
+          SPIFFE_ID=$(echo "$RESPONSE" | jq -r '.spiffe_id')
+          JWT_TOKEN=$(echo "$RESPONSE" | jq -r '.svid.token // .token // empty')
+
+          if [ -z "$SPIFFE_ID" ] || [ "$SPIFFE_ID" = "null" ]; then
+            echo "FAILED: No spiffe_id in attest response"
+            exit 1
+          fi
+          echo "SUCCESS: Minted publisher SVID: $SPIFFE_ID"
+
+          # Persist JWT for assayward
+          echo "$JWT_TOKEN" > ./svid.jwt
+
+          echo "Fetching JWKS..."
+          curl -sf http://localhost:8443/v1/jwks > ./jwks.json
+          KEYS=$(jq '.keys | length' ./jwks.json)
+          echo "JWKS contains $KEYS key(s)"
+          if [ "$KEYS" -lt 1 ]; then
+            echo "FAILED: no keys in JWKS"
+            exit 1
+          fi
+          echo "SUCCESS: JWKS saved to ./jwks.json"
+
+      # -----------------------------------------------------------------------
+      # 4. Assayward gates the release
+      #    Exits non-zero on deny; exits zero on allow.
+      # -----------------------------------------------------------------------
+      - name: Assayward release gate
+        uses: sns45/assayward-action@v0.1
+        with:
+          forgeseal-output: ./forgeseal-output
+          image: svidmint-artifact@${{ steps.digest.outputs.digest }}
+          signature-ca: ./forgeseal-output/forgeseal-signing-ca.crt
+          svid: ./svid.jwt
+          spiffe-bundle: ci.svidmint.dev=./jwks.json
+          policy-file: ./assayward-dogfood-policy.yaml

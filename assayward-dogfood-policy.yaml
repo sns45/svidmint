@@ -1,0 +1,27 @@
+# Assayward release-gate policy for svidmint dogfood.
+# Gates every published release: forgeseal signature required, SLSA level 3,
+# VEX-triaged vulnerabilities, SBOM present, publisher identity from svidmint's
+# own SPIFFE trust domain.
+
+signature:
+  required: true
+  keyless:
+    identityPattern: "https://forgeseal.dev/*"
+  rekor:
+    required: false
+
+slsa:
+  minLevel: 3
+  allowedBuilders:
+    - "https://forgeseal.dev/*"
+
+vex:
+  maxUnmitigatedSeverity: high
+
+sbom:
+  required: true
+
+identity:
+  required: true
+  trustDomain: "spiffe://ci.svidmint.dev"
+  idPattern: "spiffe://ci.svidmint.dev/github-actions/*"
