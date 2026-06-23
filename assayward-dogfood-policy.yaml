@@ -14,6 +14,7 @@ slsa:
   minLevel: 3
   allowedBuilders:
     - "https://forgeseal.dev/*"
+    - "https://github.com/sns45/*"
 
 vex:
   maxUnmitigatedSeverity: high
