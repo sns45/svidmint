@@ -99,10 +99,16 @@ func TestEndToEnd_AttestAndValidate(t *testing.T) {
 	x509Resp := attestSVID(t, ts.URL, "x509", nil)
 	assert.Equal(t, "spiffe://integration.test/e2e/workload", x509Resp["spiffe_id"])
 	assert.Equal(t, "x509", x509Resp["svid_type"])
-	assert.NotEmpty(t, x509Resp["certificate"])
-	assert.NotEmpty(t, x509Resp["expires_at"])
 
-	// 8. Validate X.509 SVID via validate endpoint
+	// The response must carry a nested "svid" object with cert_chain as an array.
+	svidObj, ok := x509Resp["svid"].(map[string]interface{})
+	require.True(t, ok, "svid field must be a JSON object")
+	certChain, ok := svidObj["cert_chain"].([]interface{})
+	require.True(t, ok, "svid.cert_chain must be a JSON array")
+	assert.NotEmpty(t, certChain, "svid.cert_chain must not be empty")
+	assert.NotEmpty(t, svidObj["expires_at"])
+
+	// 8. Validate X.509 SVID via validate endpoint using the full chain.
 	validateX509(t, ts.URL, x509Resp)
 
 	// 9. Get trust bundle
@@ -141,26 +147,34 @@ func attestSVID(t *testing.T, baseURL, svidType string, audience []string) map[s
 }
 
 // validateX509 sends a validate request for the X.509 SVID returned by attest.
-// Note: The attest endpoint returns only the leaf certificate, but go-spiffe
-// validation requires the full chain (leaf + intermediate). We send only the
-// leaf and verify the endpoint responds without error. If the chain is
-// incomplete, valid will be false; that is expected when only the leaf is
-// available.
+// The attest endpoint now returns the full cert chain (leaf + intermediate) as
+// a JSON array under svid.cert_chain. We concatenate all PEM strings and send
+// them to the validate endpoint.
 func validateX509(t *testing.T, baseURL string, attestResp map[string]interface{}) {
 	t.Helper()
 
-	certPEM, ok := attestResp["certificate"].(string)
-	require.True(t, ok, "certificate field must be a string")
-	require.NotEmpty(t, certPEM)
+	svidObj, ok := attestResp["svid"].(map[string]interface{})
+	require.True(t, ok, "svid field must be a JSON object")
+
+	chainIface, ok := svidObj["cert_chain"].([]interface{})
+	require.True(t, ok, "svid.cert_chain must be a JSON array")
+	require.NotEmpty(t, chainIface)
+
+	// Concatenate all PEM blocks into a single string for the validate endpoint.
+	var fullChain string
+	for _, c := range chainIface {
+		certPEM, ok := c.(string)
+		require.True(t, ok, "each element of svid.cert_chain must be a string")
+		fullChain += certPEM
+	}
 
 	body := map[string]interface{}{
 		"svid_type": "x509",
-		"svid":      certPEM,
+		"svid":      fullChain,
 	}
 
 	resp := doPost(t, baseURL+"/v1/validate", body)
-	// The validate endpoint should return a well formed response regardless of
-	// whether the chain is complete enough for full verification.
+	// The validate endpoint should return a well-formed response.
 	_, hasValid := resp["valid"]
 	assert.True(t, hasValid, "response should contain a valid field")
 }

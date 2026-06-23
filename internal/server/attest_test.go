@@ -24,18 +24,18 @@ import (
 
 // mockCA implements ca.CA for testing.
 type mockCA struct {
-	x509SVID    *ca.X509SVID
-	x509Err     error
-	jwtSVID     *ca.JWTSVID
-	jwtErr      error
-	bundle      *ca.TrustBundle
-	bundleErr   error
-	jwksData    []byte
-	jwksErr     error
-	validateX   string
-	validateXE  error
-	validateJ   string
-	validateJE  error
+	x509SVID   *ca.X509SVID
+	x509Err    error
+	jwtSVID    *ca.JWTSVID
+	jwtErr     error
+	bundle     *ca.TrustBundle
+	bundleErr  error
+	jwksData   []byte
+	jwksErr    error
+	validateX  string
+	validateXE error
+	validateJ  string
+	validateJE error
 }
 
 func (m *mockCA) SignX509SVID(_ context.Context, _ string, _ *x509.CertificateRequest, _ int) (*ca.X509SVID, error) {
@@ -119,7 +119,7 @@ func makeAttestBody(t *testing.T, evidenceType, evidence, svidType string, audie
 }
 
 func TestAttest_ValidX509(t *testing.T) {
-	// Create a self signed cert to use in the mock response.
+	// Create a self-signed cert to use in the mock response.
 	mockCert := &x509.Certificate{Raw: []byte("mock-cert-der")}
 	expiresAt := time.Now().Add(time.Hour)
 
@@ -162,8 +162,11 @@ func TestAttest_ValidX509(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "spiffe://example.org/workload", resp.SpiffeID)
 	assert.Equal(t, "x509", resp.SVIDType)
-	assert.NotEmpty(t, resp.Certificate)
-	assert.NotEmpty(t, resp.ExpiresAt)
+
+	// The X.509 SVID must be under resp.SVID with cert_chain as a JSON array.
+	require.NotNil(t, resp.SVID)
+	assert.NotEmpty(t, resp.SVID.CertChain)
+	assert.NotEmpty(t, resp.SVID.ExpiresAt)
 }
 
 func TestAttest_ValidJWT(t *testing.T) {
