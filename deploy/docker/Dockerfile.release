@@ -1,0 +1,7 @@
+# Used by goreleaser: the binary is already built (CGO-disabled), so just package it.
+# The from-source deploy/docker/Dockerfile remains for standalone `docker build`.
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates && adduser -D -u 1000 svidmint
+COPY svidmint /usr/local/bin/svidmint
+USER svidmint
+ENTRYPOINT ["svidmint"]
