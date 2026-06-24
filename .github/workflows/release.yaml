@@ -64,7 +64,9 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # goreleaser brews reads .Env.HOMEBREW_TAP_TOKEN; map it from the secret
+          # that is actually configured on this repo (HOMEBREW_TAP_GITHUB_TOKEN).
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
   # ForgeSeal pipeline reference (REQ-078) - now addressed by .github/workflows/assayward-gate.yml
   # Produces a signed provenance attestation for release artifacts.
